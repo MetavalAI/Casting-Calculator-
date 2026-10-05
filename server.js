@@ -12,7 +12,11 @@ const { pool, query, withTransaction, testPostgresConnection } = require("./db/p
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || "0.0.0.0";
-const JWT_SECRET = process.env.JWT_SECRET || "metaval-local-dev-secret-change-me";
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error("JWT_SECRET must be configured in the environment.");
+};
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
@@ -127,22 +131,80 @@ async function heatHistory(client, schema, heatId, action, user, details = {}) {
 /* ---- Admin bootstrap ------------------------------------------------------- */
 
 async function ensureAdmin() {
-  const email = (process.env.ADMIN_EMAIL || "jatin.singh@metaval.com").toLowerCase();
-  const { rows } = await query(`SELECT 1 FROM core.users WHERE lower(email) = $1`, [email]);
-  if (rows.length) return;
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  const adminName = process.env.ADMIN_NAME?.trim();
+  const adminEmployeeCode = process.env.ADMIN_EMPLOYEE_CODE?.trim();
 
-  const password = process.env.ADMIN_PASSWORD || "Singh@#302";
+  if (!email) {
+    throw new Error("ADMIN_EMAIL must be configured.");
+  }
+
+  if (!password) {
+    throw new Error("ADMIN_PASSWORD must be configured.");
+  }
+
+  if (!adminName) {
+    throw new Error("ADMIN_NAME must be configured.");
+  }
+  if (!adminEmployeeCode) {
+    throw new Error("ADMIN_EMPLOYEE_CODE must be configured.");
+  }
+
+  const role = await query(
+    `SELECT id FROM core.roles WHERE code = $1`,
+    ["admin"]
+  );
+
+  if (!role.rows.length) {
+    throw new Error("Admin role is not configured in core.roles.");
+  }
+
+  const deptId = await getOrCreateDepartment(pool, "IT / Engineering");
   const hash = await bcrypt.hash(password, 12);
 
+  const [byEmail, byEmployeeCode] = await Promise.all([
+    query(`SELECT * FROM core.users WHERE lower(email) = $1 LIMIT 1`, [email]),
+    query(`SELECT * FROM core.users WHERE employee_code = $1 LIMIT 1`, [adminEmployeeCode]),
+  ]);
+
+  const existingEmailRecord = byEmail.rows[0];
+  const existingCodeRecord = byEmployeeCode.rows[0];
+
+  if (existingEmailRecord && existingCodeRecord && existingEmailRecord.id !== existingCodeRecord.id) {
+    throw new Error(
+      "Admin email and employee code already belong to different accounts. Check ADMIN_EMAIL and ADMIN_EMPLOYEE_CODE in .env."
+    );
+  }
+
+  const existing = existingEmailRecord || existingCodeRecord;
+  if (existing) {
+    await query(
+      `UPDATE core.users
+       SET employee_code = $1,
+           name = $2,
+           email = $3,
+           password_hash = $4,
+           role_id = $5,
+           department_id = $6,
+           active = true
+       WHERE id = $7`,
+      [adminEmployeeCode, adminName, email, hash, role.rows[0].id, deptId, existing.id]
+    );
+    console.log(`Synced admin account ${email} in core.users`);
+    return;
+  }
+
   await withTransaction(async (client) => {
-    const deptId = await getOrCreateDepartment(client, "IT / Engineering");
-    const role = await client.query(`SELECT id FROM core.roles WHERE code = 'admin'`);
+    const currentDeptId = await getOrCreateDepartment(client, "IT / Engineering");
+
     await client.query(
       `INSERT INTO core.users (employee_code, name, email, password_hash, role_id, department_id)
-       VALUES ('ADMIN-001', $1, $2, $3, $4, $5)`,
-      [process.env.ADMIN_NAME || "Jatin", email, hash, role.rows[0].id, deptId]
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [adminEmployeeCode, adminName, email, hash, role.rows[0].id, currentDeptId]
     );
   });
+
   console.log(`Created admin account ${email} in core.users`);
 }
 

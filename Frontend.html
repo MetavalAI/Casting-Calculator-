@@ -2289,11 +2289,11 @@
        Works with zero configuration if nothing is running at API_BASE: every button simply shows
        a clear "Backend not reachable" message and the app keeps working exactly as before. */
     const backend = {
-      apiBase: (window.METAVAL_API_BASE || 'http://localhost:4000/api'),
+      apiBase: (window.METAVAL_API_BASE || '/api'),
       token: sessionStorage.getItem('metaval_token') || null,
       user: JSON.parse(sessionStorage.getItem('metaval_user') || 'null'),
-      linkedHeatId: {}, // { 'casting|CAST IRON|HT-2026-00001': true } - which local heats have been pushed
-      lastServerCheck: null, // { correctionPlan, releaseCheck, cost, fetchedAt } for the Verify panel
+      linkedHeatId: {},
+      lastServerCheck: null,
       lastError: null,
     };
 
@@ -2444,7 +2444,11 @@
       <div class="panel-sub">Everything above already works fully offline. Log in below to sync this heat to the Node/Express backend and get a server-authoritative correction-plan, release-check and role-gated approvals.</div>
       <div class="field-grid">
        
-        <div class="field"><label>Password</label><input type="password" id="backend-password" placeholder="ChangeMe123!" /></div>
+        <div class="field"><label>Password</label><input
+  type="password"
+  id="backend-password"
+  autocomplete="current-password"
+  placeholder="Enter password"/></div>
       </div>
       <button class="btn btn-accent" data-action="backendLoginBtn">Sign In</button>
       ${errorHTML}

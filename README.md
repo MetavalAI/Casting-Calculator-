@@ -17,9 +17,13 @@ Open PowerShell in this folder:
 Copy `.env.example` to `.env` and fill in the `DB_*` values (see **Database** below).
 
 Demo admin:
-- Username: Pappu ke papa
-- Email: Apni daal 
-- Password: Teri Marzi
+- Name: Pappu ke papa
+- Employee code: ADMIN-001
+- Email: admin@example.com
+- Password: ChangeMe123!
+
+Create a `.env` file with all required admin settings, including
+`ADMIN_EMPLOYEE_CODE` and `JWT_SECRET` before starting the server.
 
 > **Important:** if you set `ADMIN_PASSWORD` yourself in `.env`, and it
 > contains a `#`, wrap the whole value in quotes, e.g.
